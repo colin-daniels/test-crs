@@ -1,0 +1,97 @@
+//
+// Created by intellij-pest on 2022-09-24
+// crs
+// Author: Colin
+//
+
+crs = {
+    SOI ~ (
+        (
+            line_comment  |
+            sec_rule      |
+            sec_marker    |
+            sec_action    |
+            sec_component_signature
+        ) ~ NEWLINE*
+    )* ~ EOI
+}
+
+//
+// Top-level rules
+//
+
+line_comment = _{ "#" ~ (!NEWLINE ~ ANY)* }
+sec_marker = { "SecMarker " ~ quote ~ marker ~ quote ~ NEWLINE }
+sec_action = { "SecAction " ~ backslash_continue? ~ quote ~ actions ~ quote ~ NEWLINE }
+sec_component_signature = { "SecComponentSignature " ~ quote ~ signature ~ quote ~ NEWLINE }
+sec_rule = {
+    " "* ~ "SecRule "
+    ~ inputs ~ " " ~ backslash_continue?
+    ~ quote ~ test ~ quote
+    ~ (
+        " " ~ backslash_continue?
+        ~ quote ~ actions ~ quote
+    )?
+    ~ NEWLINE
+}
+
+//
+// Nested rules (mainly used for parsing SecRule directives)
+//
+
+input_modifier = { "!" | "&" }
+input_name = { ASCII_ALPHA ~ (!(" " | "|" | ":") ~ ANY)* }
+input_selector = { (!(" " | "|") ~ ANY)+ }
+input = { input_modifier? ~ input_name ~ (":" ~ input_selector)? }
+// inputs are exclusively delimited by |'s
+inputs = { input ~ ("|" ~ input)* }
+
+test_modifier = { "!" }
+test_operator = { ASCII_ALPHANUMERIC+ }
+test_argument = { quoted_string_content }
+test = { test_modifier? ~ "@" ~ test_operator ~ (" " ~ test_argument)? }
+
+action_name = { (!(":" | "," | quote) ~ ANY)+ }
+action_argument = {
+    // single-quoted action argument, may contain commas
+    // as well as escaped single and/or double quotes
+    (
+        "\'" ~ (
+            escaped_backslash    |
+            escaped_quote        |
+            escaped_single_quote |
+            (!"\'" ~ ANY)
+        )+ ~ "\'"
+    ) |
+    // plain (non-quoted) action argument
+    (!("," | quote) ~ ANY)+
+}
+action = { action_name ~ (":" ~ action_argument)? }
+// actions are separated by commas, and may use backslash line continuations
+actions = { action ~ ("," ~ backslash_continue? ~ action)* }
+
+marker = { quoted_string_content+ }
+signature = { quoted_string_content+ }
+
+//
+// Utility (silent) rules
+//
+
+quote = _{ "\"" }
+escaped_quote = _{ "\\\"" }
+escaped_single_quote = _{ "\\\'" }
+escaped_backslash = _{ "\\\\" }
+backslash_continue = _{ "\\" ~ NEWLINE ~ (" " | "\t")* }
+
+quoted_string_part = _{
+    (
+        backslash_continue | // secrule conf format allows backslashes to continue a quoted string on the next line
+        escaped_backslash  | // then consume any escaped backslashes
+        escaped_quote      | // then try to consume an escaped quote (if there is one)
+        (!quote ~ ANY)       // otherwise fall back to consuming anything as long as it's not a unescaped quote
+    )
+}
+
+quoted_string_content = _{
+    quoted_string_part+
+}
