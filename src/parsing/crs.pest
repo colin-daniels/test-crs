@@ -12,7 +12,7 @@ crs = {
             sec_marker    |
             sec_action    |
             sec_component_signature
-        ) ~ NEWLINE*
+        ) ~ NEWLINE+
     )* ~ EOI
 }
 
@@ -21,9 +21,9 @@ crs = {
 //
 
 line_comment = _{ "#" ~ (!NEWLINE ~ ANY)* }
-sec_marker = { "SecMarker " ~ quote ~ marker ~ quote ~ NEWLINE }
-sec_action = { "SecAction " ~ backslash_continue? ~ quote ~ actions ~ quote ~ NEWLINE }
-sec_component_signature = { "SecComponentSignature " ~ quote ~ signature ~ quote ~ NEWLINE }
+sec_marker = { "SecMarker " ~ quote ~ marker ~ quote }
+sec_action = { "SecAction " ~ backslash_continue? ~ quote ~ actions ~ quote }
+sec_component_signature = { "SecComponentSignature " ~ quote ~ signature ~ quote }
 sec_rule = {
     " "* ~ "SecRule "
     ~ inputs ~ " " ~ backslash_continue?
@@ -32,7 +32,6 @@ sec_rule = {
         " " ~ backslash_continue?
         ~ quote ~ actions ~ quote
     )?
-    ~ NEWLINE
 }
 
 //
@@ -40,7 +39,7 @@ sec_rule = {
 //
 
 input_modifier = { "!" | "&" }
-input_name = { ASCII_ALPHA ~ (!(" " | "|" | ":") ~ ANY)* }
+input_name = { (ASCII_ALPHANUMERIC | "_")+ }
 input_selector = { (!(" " | "|") ~ ANY)+ }
 input = { input_modifier? ~ input_name ~ (":" ~ input_selector)? }
 // inputs are exclusively delimited by |'s
@@ -51,7 +50,7 @@ test_operator = { ASCII_ALPHANUMERIC+ }
 test_argument = { quoted_string_content }
 test = { test_modifier? ~ "@" ~ test_operator ~ (" " ~ test_argument)? }
 
-action_name = { (!(":" | "," | quote) ~ ANY)+ }
+action_name = { ASCII_ALPHANUMERIC+ }
 action_argument = {
     // single-quoted action argument, may contain commas
     // as well as escaped single and/or double quotes
