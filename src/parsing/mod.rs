@@ -47,13 +47,6 @@ pub enum CRSEntry {
     },
 }
 
-// #[derive(Debug)]
-// pub struct Input {
-//     pub modifier: Option<String>,
-//     pub input: InputType,
-//     pub selector: Option<String>,
-// }
-
 #[derive(Debug, Clone)]
 pub struct Test {
     pub invert: bool,
