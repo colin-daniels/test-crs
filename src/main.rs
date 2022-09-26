@@ -1,15 +1,19 @@
+// use crate::operators::{Action, Operator};
 use crate::parsing::CRSEntry;
-use std::collections::HashSet;
-use std::io;
 
+pub mod expr;
+pub mod operators;
 pub mod parsing;
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), parsing::CRSParseError> {
     let config_files = parsing::parse_all_conf("coreruleset/rules")?;
 
-    let mut unique_actions = HashSet::new();
-    let mut unique_inputs = HashSet::new();
-    let mut unique_operators = HashSet::new();
+    // let mut unique_actions = HashSet::new();
+    // let mut unique_inputs = HashSet::new();
+    // let mut unique_operators = HashSet::new();
+
+    // let mut ops: Vec<Operator> = vec![];
+    // let mut acts: Vec<Action> = vec![];
     for conf in config_files {
         println!("File: {}", conf.path.display());
         for entry in conf.entries {
@@ -21,17 +25,39 @@ fn main() -> io::Result<()> {
                     test,
                 } => {
                     println!("{:?}", test);
-                    unique_operators.insert(test.operator);
+                    // match test.clone().try_into() {
+                    //     Ok(op) => ops.push(op),
+                    //     Err(e) => println!("bad op {:?}\n{}", test, e),
+                    // };
+
+                    // unique_operators.insert(test.operator);
                     for action in actions {
-                        unique_actions.insert(action.name);
+                        println!("{:?}", action);
+                        // unique_actions.insert(action.name);
+                        // match action.clone().try_into() {
+                        //     Ok(a) => {
+                        //         println!("{:?}", a);
+                        //         acts.push(a);
+                        //     }
+                        //     Err(e) => println!("bad action {:?}\n{}", action, e),
+                        // }
                     }
                     for input in inputs {
-                        unique_inputs.insert(input.modifier.unwrap_or_default());
+                        println!("{:?}", input);
+                        // unique_inputs.insert(input.input);
                     }
                 }
                 CRSEntry::SecAction(actions) => {
                     for action in actions {
-                        unique_actions.insert(action.name);
+                        println!("{:?}", action);
+                        // unique_actions.insert(action.name);
+                        // match action.clone().try_into() {
+                        //     Ok(a) => {
+                        //         println!("{:?}", a);
+                        //         acts.push(a);
+                        //     }
+                        //     Err(e) => println!("bad action {:?}\n{}", action, e),
+                        // }
                     }
                 }
                 _ => (),
@@ -39,9 +65,9 @@ fn main() -> io::Result<()> {
         }
     }
 
-    println!("{:?}", unique_actions);
-    println!("{:?}", unique_inputs);
-    println!("{:?}", unique_operators);
+    // println!("{:?}", unique_actions);
+    // println!("{:?}", unique_inputs);
+    // println!("{:?}", ops);
 
     Ok(())
 }

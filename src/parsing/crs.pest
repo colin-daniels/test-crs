@@ -39,9 +39,9 @@ sec_rule = {
 //
 
 input_modifier = { "!" | "&" }
-input_name = { (ASCII_ALPHANUMERIC | "_")+ }
+input_type = { (ASCII_ALPHANUMERIC | "_")+ }
 input_selector = { (!(" " | "|") ~ ANY)+ }
-input = { input_modifier? ~ input_name ~ (":" ~ input_selector)? }
+input = { input_modifier? ~ input_type ~ (":" ~ input_selector)? }
 // inputs are exclusively delimited by |'s
 inputs = { input ~ ("|" ~ input)* }
 
