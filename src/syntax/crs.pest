@@ -35,7 +35,7 @@ sec_rule = {
 }
 
 //
-// Nested rules (mainly used for parsing SecRule directives)
+// Nested rules (mainly used for syntax SecRule directives)
 //
 
 input_modifier = { "!" | "&" }

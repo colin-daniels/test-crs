@@ -14,7 +14,7 @@ pub use input::{Input, InputType, Selector};
 pub use operator::Operator;
 
 #[derive(pest_derive::Parser)]
-#[grammar = "parsing/crs.pest"]
+#[grammar = "syntax/crs.pest"]
 struct CRSParser;
 
 #[derive(Error, Debug)]
