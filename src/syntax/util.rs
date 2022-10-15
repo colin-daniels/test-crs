@@ -3,24 +3,34 @@ use std::{fs, io};
 
 #[macro_export]
 macro_rules! enum_token {
-    (pub enum $name:ident {
-        $($variant:ident = $val:expr),*,
+    (pub enum $token:ident {
+        $(
+            $(#[$doc:meta])*
+            $variant:ident = $name:literal
+        ),*,
     }) => {
-        #[derive(Debug, Copy, Clone)]
-        pub enum $name {
-            $($variant),*
+        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+        pub enum $token {
+            $($(#[$doc])* $variant),*
         }
 
-        impl $name {
+        impl $token {
+            #[inline]
+            pub fn variants() -> &'static [Self] {
+                &[ $(Self::$variant,)* ]
+            }
+
+            #[inline]
             pub fn name(&self) -> &'static str {
                 match self {
-                    $($name::$variant => $val,)*
+                    $(Self::$variant => $name,)*
                 }
             }
 
+            #[inline]
             pub fn from_name(s: &str) -> Option<Self> {
                 match s {
-                    $($val => Some($name::$variant),)*
+                    $($name => Some(Self::$variant),)*
                     _ => None,
                 }
             }
@@ -32,33 +42,6 @@ macro_rules! enum_token {
 macro_rules! replace_expr {
     ($_t:tt $sub:tt) => {
         $sub
-    };
-}
-
-#[macro_export]
-macro_rules! token_with_args {
-    (pub enum $name:ident {
-        $($variant:ident$(($typ:ty))? = $val:expr),*,
-    }) => {
-        #[derive(Debug, Clone)]
-        pub enum $name {
-            $($variant$(($typ))?),*
-        }
-
-        impl $name {
-            pub fn name(&self) -> &'static str {
-                match self {
-                    $($name::$variant$(($crate::replace_expr!($typ _)))? => $val,)*
-                }
-            }
-
-            pub fn from_arg(s: &str, a: Option<&str>) -> Option<Self> {
-                match s {
-                    $($val => Some($name::$variant$((<$typ>::from(a?)))?),)*
-                    _ => None,
-                }
-            }
-        }
     };
 }
 

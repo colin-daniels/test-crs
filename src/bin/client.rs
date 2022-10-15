@@ -1,3 +1,7 @@
+use hyper::Client;
+use std::borrow::Borrow;
+use std::fmt::Write;
+use test_crs::syntax::parse_entries;
 use test_crs::{ftw, syntax, syntax::CRSEntry, CRSError};
 
 fn main() -> Result<(), CRSError> {
@@ -11,65 +15,45 @@ fn main() -> Result<(), CRSError> {
     for conf in config_files {
         println!("File: {}", conf.path.display());
         for entry in conf.entries {
-            match entry {
-                CRSEntry::SecRule {
-                    actions,
-                    inputs,
-                    test,
-                } => {
-                    println!("{:?}", test);
-                    for action in actions {
-                        println!("{:?}", action);
-                    }
-                    for input in inputs {
-                        println!("{:?}", input);
-                    }
-                }
-                CRSEntry::SecAction(actions) => {
-                    for action in actions {
-                        println!("{:?}", action);
-                    }
-                }
-                _ => (),
-            }
+            println!("{}", entry);
         }
     }
 
-    let mut files = vec![];
-    for entry in glob::glob("coreruleset/tests/regression/tests/*/*.yaml").unwrap() {
-        if let Ok(path) = entry {
-            let testfile = match ftw::File::from_path(&path) {
-                Ok(testfile) => testfile,
-                Err(err) => {
-                    eprintln!("{} {:?}", path.display(), err);
-                    Err(err)?
-                }
-            };
-            files.push(testfile);
-
-            let testfile = files.last().unwrap();
-            for input in testfile.inputs() {
-                match input.request() {
-                    Ok(_) => {}
-                    Err(e) => {
-                        println!("err: {:?}", e);
-                        println!("input: {:?}", input);
-                    }
-                }
+    let ftw_files = glob::glob("coreruleset/tests/regression/tests/*/*.yaml")
+        .unwrap()
+        .filter_map(|p| p.ok())
+        .filter_map(|path| match ftw::File::from_path(&path) {
+            Ok(file) => Some(file),
+            Err(err) => {
+                eprintln!("{} {}", path.display(), err);
+                None
             }
-        }
-    }
+        })
+        .collect::<Vec<_>>();
 
-    rt.block_on(async {
-        let url = "http://google.com/?q=hello";
-        let url = url.parse::<hyper::Uri>().unwrap();
-        if url.scheme_str() != Some("http") {
-            println!("This example only works with 'http' URLs.");
-            return Ok(());
-        }
-        test_crs::fetch_url(url).await
-    })
-    .unwrap();
+    let ftw_stages: Vec<&ftw::Stage> = ftw_files.iter().flat_map(|file| file.stages()).collect();
+
+    // rt.block_on(async {
+    //     let client = Client::new();
+    //
+    //     for stage in ftw_stages {
+    //         let ftw::Stage { input, output } = stage;
+    //         if let Ok(req) = input.request() {
+    //             let mut res = client.request(req).await?;
+    //             println!("Response: {}", res.status());
+    //             println!("Headers: {:#?}\n", res.headers());
+    //         }
+    //     }
+    //
+    //     // // Stream the body, writing each chunk to stdout as we get it
+    //     // // (instead of buffering and printing at the end).
+    //     // while let Some(next) = res.data().await {
+    //     //     let chunk = next?;
+    //     //     io::stdout().write_all(&chunk).await?;
+    //     // }
+    //     Ok(())
+    // })
+    // .unwrap();
 
     Ok(())
 }

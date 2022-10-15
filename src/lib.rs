@@ -14,7 +14,7 @@ pub enum CRSError {
     #[error(transparent)]
     ParseError(#[from] syntax::CRSParseError),
     #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    IoError(#[from] io::Error),
     #[error(transparent)]
     HyperError(#[from] hyper::Error),
     #[error(transparent)]

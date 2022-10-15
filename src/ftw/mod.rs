@@ -1,6 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use http::header::{HeaderName, HeaderValue};
-use hyper::{Request, Uri};
+use hyper::{Body, Request, Uri};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -232,7 +232,7 @@ impl Input {
             .build()
     }
 
-    pub fn request(&self) -> Result<Request<Option<&str>>, http::Error> {
+    pub fn request(&self) -> Result<Request<Body>, http::Error> {
         let mut builder = Request::builder()
             .method(self.method.as_str())
             .uri(self.uri()?);
@@ -243,7 +243,11 @@ impl Input {
             builder = builder.header(name, value);
         }
 
-        builder.body(self.data.0.as_ref().map(String::as_str))
+        if let Some(body) = self.data.0.as_ref() {
+            builder.body(Body::from(body.clone()))
+        } else {
+            builder.body(Body::empty())
+        }
     }
 }
 
