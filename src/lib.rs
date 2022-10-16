@@ -1,5 +1,6 @@
 use crate::syntax::CRSEntry;
 
+pub mod engine;
 pub mod expr;
 pub mod ftw;
 pub mod rules;

@@ -1,6 +1,7 @@
 use hyper::Client;
 use std::borrow::Borrow;
 use std::fmt::Write;
+use test_crs::engine::{get_variables_from_source, SourceType};
 use test_crs::syntax::parse_entries;
 use test_crs::{ftw, syntax, syntax::CRSEntry, CRSError};
 
@@ -32,6 +33,17 @@ fn main() -> Result<(), CRSError> {
         .collect::<Vec<_>>();
 
     let ftw_stages: Vec<&ftw::Stage> = ftw_files.iter().flat_map(|file| file.stages()).collect();
+
+    for ftw::Stage { input, .. } in ftw_stages {
+        if let Ok(req) = input.request() {
+            for &source in SourceType::variants() {
+                for var in get_variables_from_source(&req, source) {
+                    println!("{}", var);
+                }
+            }
+            println!();
+        }
+    }
 
     // rt.block_on(async {
     //     let client = Client::new();
