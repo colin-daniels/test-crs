@@ -1,7 +1,7 @@
 use crate::engine::content_type::parse_www_form_urlencoded;
 use bytes::Bytes;
+use futures_util::StreamExt;
 use http::Request;
-use hyper::Body;
 use mime::Mime;
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
@@ -10,9 +10,11 @@ use std::str::Utf8Error;
 pub mod content_type;
 pub mod cookies;
 pub mod transforms;
+pub mod value;
 
 use crate::syntax::{Input, InputType};
 use content_type::www_form_urlencoded;
+use value::Value;
 
 macro_rules! sources {
     (pub enum $token:ident {
@@ -31,12 +33,20 @@ macro_rules! sources {
             pub fn variants() -> &'static [Self] {
                 &[ $(Self::$variant,)* ]
             }
+
+            #[inline]
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => stringify!($variant),)*
+                }
+            }
         }
     };
 }
 
 sources! {
     pub enum SourceType {
+        Body,
         Cookie,
         CookieName,
         Header,
@@ -99,39 +109,6 @@ impl Display for SourceType {
     }
 }
 
-#[derive(Clone)]
-pub struct Source {
-    pub typ: SourceType,
-    pub source: Bytes,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Variable<'a> {
-    pub source: SourceType,
-    pub name: Option<&'a [u8]>,
-    pub value: &'a [u8],
-}
-
-impl<'a> Display for Variable<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.name {
-            Some(name) => write!(
-                f,
-                "{}(\"{}\", \"{}\")",
-                self.source,
-                String::from_utf8_lossy(name),
-                String::from_utf8_lossy(self.value)
-            ),
-            None => write!(
-                f,
-                "{}(\"{}\")",
-                self.source,
-                String::from_utf8_lossy(self.value)
-            ),
-        }
-    }
-}
-
 pub trait RequestExt {
     fn cookies(&self) -> Result<cookies::Iter, cookies::Error>;
     fn query_args(&self) -> Option<Result<www_form_urlencoded::Iter, www_form_urlencoded::Error>>;
@@ -157,7 +134,8 @@ impl<T> RequestExt for Request<T> {
     }
 }
 
-pub fn get_variables_from_source<T>(request: &Request<T>, source: SourceType) -> Vec<Variable> {
+pub fn get_value_from_source(request: &Request<Vec<u8>>, source: SourceType) -> Vec<Value> {
+    use SourceType::*;
     // 2.1. Percent-Encoding: https://datatracker.ietf.org/doc/html/rfc3986#section-2.1
     //    For consistency, percent-encoded octets in the ranges of ALPHA
     //    (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E),
@@ -191,11 +169,7 @@ pub fn get_variables_from_source<T>(request: &Request<T>, source: SourceType) ->
     //    application is not expecting to receive raw data within a component.
     match source {
         // HTTP Method
-        SourceType::Method => vec![Variable {
-            source: SourceType::Method,
-            name: None,
-            value: request.method().as_str().as_bytes(),
-        }],
+        Method => vec![Value::from_str(Method, request.method().as_str())],
 
         // Both relative and absolute URIs contain a path component, though it
         // might be the empty string. The path component is **case sensitive**.
@@ -206,77 +180,50 @@ pub fn get_variables_from_source<T>(request: &Request<T>, source: SourceType) ->
         //                                             |
         //                                           path
         // ```
-        SourceType::UriPath => vec![Variable {
-            source: SourceType::UriPath,
-            name: None,
-            value: request.uri().path().as_bytes(),
-        }],
+        UriPath => vec![Value::from_str(UriPath, request.uri().path())],
 
         // Query String Only
-        SourceType::UriQuery => request
+        UriQuery => request
             .uri()
             .query()
-            .map(|query_string| {
-                vec![Variable {
-                    source: SourceType::UriQuery,
-                    name: None,
-                    value: query_string.as_bytes(),
-                }]
-            })
+            .map(|query| vec![Value::from_str(UriQuery, query)])
             .unwrap_or_default(),
 
-        SourceType::UriPathAndQuery => vec![Variable {
-            source: SourceType::UriPathAndQuery,
-            name: None,
-            value: request
-                .uri()
-                .path_and_query()
-                .map(|path_and_query| path_and_query.as_str().as_bytes())
-                .unwrap_or_default(),
-        }],
+        UriPathAndQuery => request
+            .uri()
+            .path_and_query()
+            .map(|path_and_query| vec![Value::from_str(UriPathAndQuery, path_and_query.as_str())])
+            .unwrap_or_default(),
 
-        SourceType::UriFull => Default::default(),
+        UriFull => Default::default(),
 
         // Header Values
-        SourceType::Header => request
+        Header => request
             .headers()
             .iter()
-            .map(|(name, value)| Variable {
-                source: SourceType::Header,
-                name: Some(name.as_str().as_bytes()),
-                value: value.as_bytes(),
+            .map(|(name, value)| {
+                Value::new_named(Header, name.as_str().as_bytes(), value.as_bytes())
             })
             .collect(),
 
         // Header Names
-        SourceType::HeaderName => request
+        HeaderName => request
             .headers()
             .iter()
-            .map(|(name, _)| Variable {
-                source: SourceType::HeaderName,
-                name: None,
-                value: name.as_str().as_bytes(),
-            })
+            .map(|(name, _)| Value::from_str(HeaderName, name.as_str()))
             .collect(),
 
         // Cookie Values
-        SourceType::Cookie => request.cookies().map(|c| c.collect()).unwrap_or_default(),
+        Cookie => request.cookies().map(|c| c.collect()).unwrap_or_default(),
 
         // Cookie Names
-        SourceType::CookieName => request
+        CookieName => request
             .cookies()
-            .map(|iter| {
-                iter.map(|v| Variable {
-                    source: SourceType::CookieName,
-                    name: None,
-                    value: v.name.unwrap(),
-                })
-                .collect()
-            })
+            .map(|iter| iter.filter_map(|v| v.into_name(CookieName)).collect())
             .unwrap_or_default(),
 
         // Query Arg Values
-        SourceType::QueryArg => {
+        QueryArg => {
             // The query component contains non-hierarchical data that, along with
             // data in the path component (Section 3.3), serves to identify a
             // resource within the scope of the URI's scheme and naming authority
@@ -290,61 +237,66 @@ pub fn get_variables_from_source<T>(request: &Request<T>, source: SourceType) ->
         }
 
         // Query Arg Names
-        SourceType::QueryArgName => request
+        QueryArgName => request
             .query_args()
             .map(|result| {
                 result
                     .unwrap()
-                    .filter_map(|var| {
-                        var.name.map(|name| Variable {
-                            source: SourceType::QueryArgName,
-                            name: None,
-                            value: name,
-                        })
-                    })
+                    .filter_map(|v| v.into_name(QueryArgName))
                     .collect()
             })
             .unwrap_or_default(),
 
         // Post Arg (x-www-form-urlencoded) Values
-        SourceType::PostArg => {
-            let content_type_is_urlencoded: bool =
-                request.mime_type_is(&mime::APPLICATION_WWW_FORM_URLENCODED);
-            Default::default()
+        PostArg => {
+            if request.mime_type_is(&mime::APPLICATION_WWW_FORM_URLENCODED) {
+                parse_www_form_urlencoded(request.body(), PostArg)
+                    .map(|iter| iter.collect())
+                    .unwrap_or_default()
+            } else {
+                Default::default()
+            }
         }
 
         // Post Arg (x-www-form-urlencoded) Names
-        SourceType::PostArgName => {
-            let content_type_is_urlencoded: bool =
-                request.mime_type_is(&mime::APPLICATION_WWW_FORM_URLENCODED);
+        PostArgName => {
+            if request.mime_type_is(&mime::APPLICATION_WWW_FORM_URLENCODED) {
+                parse_www_form_urlencoded(request.body(), PostArg)
+                    .map(|iter| iter.filter_map(|v| v.into_name(PostArgName)).collect())
+                    .unwrap_or_default()
+            } else {
+                Default::default()
+            }
+        }
+
+        JsonArg => {
+            let content_type_is_json: bool = request.mime_type_is(&mime::APPLICATION_JSON);
+            let mut deserializer = serde_json::Deserializer::from_slice(request.body());
             Default::default()
         }
 
-        SourceType::JsonArg => {
+        JsonArgName => {
             let content_type_is_json: bool = request.mime_type_is(&mime::APPLICATION_JSON);
             Default::default()
         }
 
-        SourceType::JsonArgName => {
-            let content_type_is_json: bool = request.mime_type_is(&mime::APPLICATION_JSON);
-            Default::default()
-        }
-
-        SourceType::XmlProp => {
+        XmlProp => {
             let content_type_is_xml: bool = request.mime_type_is(&mime::TEXT_XML);
             Default::default()
         }
 
-        SourceType::XmlPropName => {
+        XmlPropName => {
             let content_type_is_xml: bool = request.mime_type_is(&mime::TEXT_XML);
             Default::default()
         }
 
-        SourceType::XmlText => {
+        XmlText => {
             let content_type_is_xml: bool = request.mime_type_is(&mime::TEXT_XML);
             Default::default()
         }
 
-        SourceType::Protocol => Default::default(),
+        Protocol => Default::default(),
+
+        Body => vec![Value::new(Body, request.body())],
     }
 }

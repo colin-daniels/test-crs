@@ -3,6 +3,7 @@ use http::Request;
 use mime::Mime;
 use std::str::Utf8Error;
 
+pub mod json;
 pub mod www_form_urlencoded;
 
 #[derive(Debug, thiserror::Error)]

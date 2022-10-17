@@ -232,7 +232,7 @@ impl Input {
             .build()
     }
 
-    pub fn request(&self) -> Result<Request<Body>, http::Error> {
+    pub fn request(&self) -> Result<Request<Vec<u8>>, http::Error> {
         let mut builder = Request::builder()
             .method(self.method.as_str())
             .uri(self.uri()?);
@@ -244,9 +244,9 @@ impl Input {
         }
 
         if let Some(body) = self.data.0.as_ref() {
-            builder.body(Body::from(body.clone()))
+            builder.body(body.clone().into_bytes())
         } else {
-            builder.body(Body::empty())
+            builder.body(Default::default())
         }
     }
 }

@@ -1,4 +1,4 @@
-use super::{SourceType, Variable};
+use super::{SourceType, Value};
 use http::Request;
 use std::iter::FilterMap;
 use std::str::{Split, Utf8Error};
@@ -19,7 +19,7 @@ pub enum Error {
     InvalidCookiePairError,
 }
 
-fn parse_cookie_pair(cookie_pair: &str) -> Option<Variable> {
+fn parse_cookie_pair(cookie_pair: &str) -> Option<Value> {
     if cookie_pair.is_empty() {
         // ignore? (it's possible that this is a trailing '; ')
         return None;
@@ -52,11 +52,11 @@ fn parse_cookie_pair(cookie_pair: &str) -> Option<Variable> {
         Some((cookie_name, cookie_value)) => {
             // trim off any double quotes from the value
             let cookie_value = cookie_value.trim_matches('"');
-            Some(Variable {
-                source: SourceType::Cookie,
-                name: Some(cookie_name.as_bytes()),
-                value: cookie_value.as_bytes(),
-            })
+            Some(Value::from_str_named(
+                SourceType::Cookie,
+                cookie_name,
+                cookie_value,
+            ))
         }
     }
 }
@@ -91,7 +91,7 @@ impl<'a> Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Variable<'a>;
+    type Item = Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.find_map(parse_cookie_pair)

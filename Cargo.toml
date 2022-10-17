@@ -9,9 +9,9 @@ pest = "2.2"
 pest_derive = "2.2"
 regex = "1.6"
 thiserror = "1.0"
-hyperscan = { version = "0.3" }
 lazy_static = "1.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
 serde_yaml = "0.9"
 glob = "0.3.0"
 hyper = { version = "0.14", features = ["full"] }

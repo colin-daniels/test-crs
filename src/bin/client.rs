@@ -1,7 +1,7 @@
 use hyper::Client;
 use std::borrow::Borrow;
 use std::fmt::Write;
-use test_crs::engine::{get_variables_from_source, SourceType};
+use test_crs::engine::{get_value_from_source, SourceType};
 use test_crs::syntax::parse_entries;
 use test_crs::{ftw, syntax, syntax::CRSEntry, CRSError};
 
@@ -37,7 +37,7 @@ fn main() -> Result<(), CRSError> {
     for ftw::Stage { input, .. } in ftw_stages {
         if let Ok(req) = input.request() {
             for &source in SourceType::variants() {
-                for var in get_variables_from_source(&req, source) {
+                for var in get_value_from_source(&req, source) {
                     println!("{}", var);
                 }
             }

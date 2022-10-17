@@ -1,4 +1,4 @@
-use crate::engine::{SourceType, Variable};
+use crate::engine::{SourceType, Value};
 use std::str::{Split, Utf8Error};
 
 // https://www.w3.org/TR/2014/REC-html5-20141028/forms.html#url-encoded-form-data
@@ -54,7 +54,7 @@ impl<'a> Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Variable<'a>;
+    type Item = Value<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // HTML5 W3C Recommendation 28 October 2014
@@ -68,20 +68,12 @@ impl<'a> Iterator for Iter<'a> {
                 // after the first "=" (U+003D) character up to the end of string. If the first
                 // "=" (U+003D) character is the first character, then name will be the empty
                 // string. If it is the last character, then value will be the empty string.
-                Some((name, value)) => Some(Variable {
-                    source,
-                    name: Some(name.as_bytes()),
-                    value: value.as_bytes(),
-                }),
+                Some((name, value)) => Some(Value::from_str_named(source, name, value)),
                 None => {
                     if !string.is_empty() {
                         // Otherwise, string contains no "=" (U+003D) characters. Let name have
                         // the value of string and let value be the empty string.
-                        Some(Variable {
-                            source,
-                            name: Some(string.as_bytes()),
-                            value: &[],
-                        })
+                        Some(Value::from_str_named(source, string, ""))
                     } else {
                         // Skip totally empty strings
                         None
